@@ -2,7 +2,7 @@ package com.product.retail.productmgmt.controller;
 
 import com.product.retail.productmgmt.exceptions.ApprovalQueueNotFoundException;
 import com.product.retail.productmgmt.exceptions.ProductNotFoundException;
-import com.product.retail.productmgmt.model.ApprovalQueue;
+import com.product.retail.productmgmt.model.ProductStatus;
 import com.product.retail.productmgmt.model.Product;
 import com.product.retail.productmgmt.service.ProductService;
 import org.springframework.web.bind.annotation.*;
@@ -48,17 +48,17 @@ public class ProductController {
 
     @PutMapping("/{productId}")
     public Product updateProduct(@PathVariable Long productId, @RequestBody Product product) throws ProductNotFoundException {
-        product.setId(productId);
+        product.setProductId(productId);
         return productService.updateProduct(product);
     }
 
     @DeleteMapping("/{productId}")
-    public void deleteProduct(@PathVariable Long productId) {
+    public void deleteProduct(@PathVariable Long productId) throws ProductNotFoundException {
         productService.deleteProduct(productId);
     }
 
     @GetMapping("/approval-queue")
-    public List<ApprovalQueue> getProductApprovalQueue() {
+    public List<ProductStatus> getProductApprovalQueue() {
         return productService.getProductApprovalQueue();
     }
 

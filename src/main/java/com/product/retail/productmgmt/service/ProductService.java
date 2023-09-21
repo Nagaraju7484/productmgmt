@@ -2,7 +2,7 @@ package com.product.retail.productmgmt.service;
 
 import com.product.retail.productmgmt.exceptions.ApprovalQueueNotFoundException;
 import com.product.retail.productmgmt.exceptions.ProductNotFoundException;
-import com.product.retail.productmgmt.model.ApprovalQueue;
+import com.product.retail.productmgmt.model.ProductStatus;
 import com.product.retail.productmgmt.model.ApprovalStatus;
 import com.product.retail.productmgmt.model.Product;
 import com.product.retail.productmgmt.repo.ApprovalQueueRepository;
@@ -32,7 +32,7 @@ public class ProductService {
     }
 
     public List<Product> listActiveProducts() {
-        return productRepository.findAllByStatusOrderByPostedDateDesc(ApprovalStatus.ACTIVE);
+        return productRepository.retrieveAllActiveProducts(ApprovalStatus.ACTIVE.name());
     }
 
     public List<Product> searchProducts(String productName, BigDecimal minPrice, BigDecimal maxPrice, Date minPostedDate, Date maxPostedDate) {
@@ -85,19 +85,27 @@ public class ProductService {
      * @return Product - newly created with id
      */
     public Product createProduct(Product product) {
-        // verify the product price if it exceeds 10000$ amount
-        if (product.getPrice().compareTo(BigDecimal.valueOf(10000)) > 0) {
-            // Push the product to the approval queue
-            ApprovalQueue approvalQueue = new ApprovalQueue(product.getId(), ApprovalStatus.ACTIVE, Calendar.getInstance().getTime());
-            approvalQueueRepository.save(approvalQueue);
 
-            // Return the product with a status of "PENDING_APPROVAL"
-            product.setStatus(ApprovalStatus.PENDING_APPROVAL);
-            return product;
+       Product newProduct = productRepository.saveAndFlush(product);
+
+       updateProductStatus(newProduct);
+
+        return newProduct;
+    }
+
+    private void updateProductStatus(Product product) {
+         ProductStatus productStatus = new ProductStatus();
+        productStatus.setRequestDate(Calendar.getInstance().getTime());
+        if (product.getPrice().longValue() > 10000 ) {
+            productStatus.setStatus(ApprovalStatus.PENDING_APPROVAL.name());
+        }else {
+            productStatus.setStatus(ApprovalStatus.ACTIVE.name());
         }
+        product.setStatus(productStatus);
+        productStatus.setProductId(product.getProductId());
+        product.setStatus(productStatus);
+        productRepository.save(product);
 
-        // Save the product to the database
-        return productRepository.save(product);
     }
 
     /**
@@ -109,51 +117,41 @@ public class ProductService {
      */
     public Product updateProduct(Product product) throws ProductNotFoundException {
         // Get the existing product from the database
-        Product existingProduct = productRepository.findById(product.getId()).orElseThrow(() -> new ProductNotFoundException(product.getId()));
-
+        Product existingProduct = productRepository.findById(product.getProductId()).orElseThrow(() -> new ProductNotFoundException(product.getProductId()));
+        ProductStatus productStatus = new ProductStatus(product.getProductId(), ApprovalStatus.PENDING_APPROVAL.name(), Calendar.getInstance().getTime());
         // Validate the product price change
         if (product.getPrice().compareTo(existingProduct.getPrice().multiply(BigDecimal.valueOf(1.5))) > 0) {
-            // Push the product to the approval queue
-            ApprovalQueue approvalQueue = new ApprovalQueue(product.getId(), ApprovalStatus.ACTIVE, Calendar.getInstance().getTime());
-            approvalQueueRepository.save(approvalQueue);
-        }else{
-            // Return the product with a status of "PENDING_APPROVAL"
-            product.setStatus(ApprovalStatus.PENDING_APPROVAL);
-            // Update the product in the database
-            productRepository.save(product);
-            return product;
+            productStatus.setStatus(ApprovalStatus.PENDING_APPROVAL.name());
+
+        }else {
+            productStatus.setStatus(ApprovalStatus.ACTIVE.name());
         }
+        product.setStatus(productStatus);
 
-
-        return product;
+       return productRepository.save(product);
     }
 
-    public void deleteProduct(Long productId) {
+    public void deleteProduct(Long productId) throws ProductNotFoundException {
+        Product existingProduct = productRepository.findById(productId).orElseThrow(() -> new ProductNotFoundException(productId));
         // Push the product to the approval queue
-        ApprovalQueue approvalQueue = new ApprovalQueue(productId, ApprovalStatus.PENDING_APPROVAL, Calendar.getInstance().getTime());
-        approvalQueueRepository.save(approvalQueue);
+        ProductStatus productStatus = new ProductStatus(productId, ApprovalStatus.DELETED.name(), Calendar.getInstance().getTime());
+        approvalQueueRepository.save(productStatus);
 
         // Delete the product from the database
         productRepository.deleteById(productId);
     }
 
-    public List<ApprovalQueue> getProductApprovalQueue() {
-        return approvalQueueRepository.findAllByStatusOrderByRequestDateAsc(ApprovalStatus.PENDING_APPROVAL);
+    public List<ProductStatus> getProductApprovalQueue() {
+        return approvalQueueRepository.findAllByStatusOrderByRequestDateDesc(ApprovalStatus.PENDING_APPROVAL.name());
     }
 
     public void approveProduct(Long approvalId) throws ProductNotFoundException, ApprovalQueueNotFoundException {
         // Get the approval queue record
-        ApprovalQueue approvalQueue = approvalQueueRepository.findById(approvalId).orElseThrow(() -> new ApprovalQueueNotFoundException(approvalId));
+        ProductStatus productStatus = approvalQueueRepository.findById(approvalId).orElseThrow(() -> new ApprovalQueueNotFoundException(approvalId));
+        productStatus.setRequestDate(Calendar.getInstance().getTime());
+        productStatus.setStatus(ApprovalStatus.ACTIVE.name());
+        approvalQueueRepository.save(productStatus);
 
-        // Get the product from the database
-        Product product = productRepository.findById(approvalQueue.getProductId()).orElseThrow(() -> new ProductNotFoundException(approvalQueue.getProductId()));
-
-        // Update the product status
-        product.setStatus(ApprovalStatus.ACTIVE);
-        productRepository.save(product);
-
-        // Delete the approval queue record
-        approvalQueueRepository.deleteById(approvalId);
     }
 
     /**
@@ -163,8 +161,9 @@ public class ProductService {
      * @throws ApprovalQueueNotFoundException
      */
     public void rejectProduct(Long approvalId) throws ApprovalQueueNotFoundException {
-        ApprovalQueue approvalQueue = approvalQueueRepository.findById(approvalId).orElseThrow(() -> new ApprovalQueueNotFoundException(approvalId));
-        approvalQueue.setStatus(ApprovalStatus.REJECT);
-        approvalQueueRepository.save(approvalQueue);
+        ProductStatus productStatus = approvalQueueRepository.findById(approvalId).orElseThrow(() -> new ApprovalQueueNotFoundException(approvalId));
+        productStatus.setStatus(ApprovalStatus.REJECT.name());
+        productStatus.setRequestDate(Calendar.getInstance().getTime());
+        approvalQueueRepository.save(productStatus);
     }
 }

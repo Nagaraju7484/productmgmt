@@ -14,18 +14,13 @@ import java.util.List;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    List<Product> findAllByStatusOrderByPostedDateDesc(ApprovalStatus status);
+    /**
+     *
+     * @param status
+     * @return
+     */
+    @Query(value = "select p from Product p, ProductStatus s where p.productId = s.productId and s.status=:status")
+    List<Product> retrieveAllActiveProducts(String status);
 
     List<Product> findAll(Specification<Product> spec);
-
-    @Query(value = "SELECT p from Product p where p.name=:productName" +
-            " and p.postedDate between :minPostedDate and :maxPostedDate " +
-            "and p.price > :minPrice and p.price < :maxPrice")
-    List<Product> retrieveSearch(
-            String productName,
-            BigDecimal minPrice,
-            BigDecimal maxPrice,
-            Date minPostedDate,
-            Date maxPostedDate
-    );
 }
