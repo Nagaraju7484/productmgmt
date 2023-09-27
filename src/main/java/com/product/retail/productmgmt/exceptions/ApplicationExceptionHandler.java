@@ -17,6 +17,7 @@ public class ApplicationExceptionHandler {
 
         CommonErrorMsg errorResponse = new CommonErrorMsg();
         errorResponse.setMessage(String.format("Product not found {}", exception.getMessage()));
+        errorResponse.setErrorCode("NOT_FOUND");
 
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
     }
